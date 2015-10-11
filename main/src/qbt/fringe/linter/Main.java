@@ -32,6 +32,7 @@ class Main {
         b.put("controlCoddling", ControlCoddlingLinter.class);
         b.put("controlSpacing", ControlSpacingLinter.class);
         b.put("importsOrder", ImportsOrderLinter.class);
+        b.put("simpleImportsOnly", SimpleImportsOnlyLinter.class);
         b.put("lineEnds", LineEndsLinter.class);
         b.put("whitespace", WhitespaceLinter.class);
 
