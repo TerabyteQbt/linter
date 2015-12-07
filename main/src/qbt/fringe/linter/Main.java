@@ -7,10 +7,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import misc1.commons.options.HelpOptionsFragment;
 import misc1.commons.options.NamedStringListArgumentOptionsFragment;
 import misc1.commons.options.OptionsFragment;
@@ -21,7 +24,9 @@ import org.apache.commons.lang3.tuple.Triple;
 class Main {
     public static interface Options {
         public static final OptionsFragment<Options, ?, ImmutableList<String>> files = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-f", "--file"), "Check this file");
-        public static final OptionsFragment<Options, ?, ImmutableList<String>> dirs = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-d", "--dir"), "Check this directory");
+        public static final OptionsFragment<Options, ?, ImmutableList<String>> dirs = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-d", "--dir"), "Check this source directory");
+        public static final OptionsFragment<Options, ?, ImmutableList<String>> jars = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-j", "--jars"), "Check this jar file");
+        public static final OptionsFragment<Options, ?, ImmutableList<String>> libs = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-l", "--libs"), "Check this directory of jar files");
         public static final OptionsFragment<Options, ?, ?> help = new HelpOptionsFragment<Options>(ImmutableList.of("-h", "--help"), "Show help");
     }
 
@@ -54,10 +59,20 @@ class Main {
     public static void main(String[] args) throws Exception {
         OptionsResults<Options> o = OptionsResults.simpleParse(Options.class, "linter", args);
 
-        ImmutableList.Builder<String> b = ImmutableList.builder();
-        b.addAll(o.get(Options.files));
+        ImmutableList.Builder<String> files = ImmutableList.builder();
+        files.addAll(o.get(Options.files));
         for(String dir : o.get(Options.dirs)) {
-            search(b, new File(dir));
+            search(files, new File(dir));
+        }
+
+        ImmutableList.Builder<String> jars = ImmutableList.builder();
+        jars.addAll(o.get(Options.jars));
+        for(String libs : o.get(Options.libs)) {
+            for(File jar : new File(libs).listFiles()) {
+                if(jar.getName().endsWith(".jar")){
+                    jars.add(jar.getAbsolutePath());
+                }
+            }
         }
 
         ImmutableMap.Builder<String, Linter> lintersBuilder = ImmutableMap.builder();
@@ -66,40 +81,33 @@ class Main {
         }
         ImmutableMap<String, Linter> linters = lintersBuilder.build();
 
-        boolean failed = false;
-        for(String file : b.build()) {
-            List<Triple<Integer, String, String>> failures = Lists.newArrayList();
-            for(Map.Entry<String, Linter> lintersEntry : linters.entrySet()) {
-                for(Pair<Integer, String> failure : lintersEntry.getValue().check(slurp(file))) {
-                    failures.add(Triple.of(failure.getLeft(), lintersEntry.getKey(), failure.getRight()));
-                }
-            }
-            Collections.sort(failures, new Comparator<Triple<Integer, String, String>>() {
-                @Override
-                public int compare(Triple<Integer, String, String> l, Triple<Integer, String, String> r) {
-                    int lLine = l.getLeft();
-                    int rLine = r.getLeft();
-                    if(lLine < rLine) {
-                        return -1;
-                    }
-                    if(lLine > rLine) {
-                        return 1;
-                    }
-
-                    int ret = l.getMiddle().compareTo(r.getMiddle());
-                    if(ret != 0) {
-                        return ret;
-                    }
-
-                    return l.getRight().compareTo(r.getRight());
-                }
-            });
-            for(Triple<Integer, String, String> failure : failures) {
-                System.out.println(file + ":" + (failure.getLeft() + 1) + ":" + failure.getMiddle() + ":" + failure.getRight());
-                failed = true;
+        int violations = 0;
+        for(String file : files.build()) {
+            try(FileInputStream is = new FileInputStream(file)) {
+                violations += check(linters, file, slurp(is));
             }
         }
-        if(failed) {
+        for(String jar : jars.build()) {
+            try(FileInputStream is = new FileInputStream(jar)) {
+                try(ZipInputStream zis = new ZipInputStream(is)) {
+                    while(true) {
+                        ZipEntry ze = zis.getNextEntry();
+                        if(ze == null) {
+                            break;
+                        }
+                        if(ze.isDirectory()) {
+                            continue;
+                        }
+                        if(!ze.getName().endsWith(".java")) {
+                            continue;
+                        }
+                        List<String> lines = slurp(zis);
+                        violations += check(linters, jar + "!" + ze.getName(), lines);
+                    }
+                }
+            }
+        }
+        if(violations > 0) {
             System.exit(1);
         }
         else {
@@ -107,30 +115,56 @@ class Main {
         }
     }
 
-    public static List<String> slurp(String path) {
-        try {
-            FileInputStream fis = new FileInputStream(path);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImmutableList.Builder<String> b = ImmutableList.builder();
-            while(true) {
-                int bb = fis.read();
-                if(bb < 0) {
-                    byte[] line = baos.toByteArray();
-                    if(line.length > 0) {
-                        b.add(new String(line));
-                    }
-                    fis.close();
-                    return b.build();
+    private static List<String> slurp(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImmutableList.Builder<String> b = ImmutableList.builder();
+        while(true) {
+            int bb = is.read();
+            if(bb < 0) {
+                byte[] line = baos.toByteArray();
+                if(line.length > 0) {
+                    b.add(new String(line));
                 }
-                baos.write(bb);
-                if(bb == '\n') {
-                    b.add(new String(baos.toByteArray()));
-                    baos.reset();
-                }
+                return b.build();
+            }
+            baos.write(bb);
+            if(bb == '\n') {
+                b.add(new String(baos.toByteArray()));
+                baos.reset();
             }
         }
-        catch(IOException e) {
-            throw new RuntimeException(e);
+    }
+
+    private static int check(ImmutableMap<String, Linter> linters, String label, List<String> lines) {
+        List<Triple<Integer, String, String>> failures = Lists.newArrayList();
+        for(Map.Entry<String, Linter> lintersEntry : linters.entrySet()) {
+            for(Pair<Integer, String> failure : lintersEntry.getValue().check(lines)) {
+                failures.add(Triple.of(failure.getLeft(), lintersEntry.getKey(), failure.getRight()));
+            }
         }
+        Collections.sort(failures, new Comparator<Triple<Integer, String, String>>() {
+            @Override
+            public int compare(Triple<Integer, String, String> l, Triple<Integer, String, String> r) {
+                int lLine = l.getLeft();
+                int rLine = r.getLeft();
+                if(lLine < rLine) {
+                    return -1;
+                }
+                if(lLine > rLine) {
+                    return 1;
+                }
+
+                int ret = l.getMiddle().compareTo(r.getMiddle());
+                if(ret != 0) {
+                    return ret;
+                }
+
+                return l.getRight().compareTo(r.getRight());
+            }
+        });
+        for(Triple<Integer, String, String> failure : failures) {
+            System.out.println(label + ":" + (failure.getLeft() + 1) + ":" + failure.getMiddle() + ":" + failure.getRight());
+        }
+        return failures.size();
     }
 }
