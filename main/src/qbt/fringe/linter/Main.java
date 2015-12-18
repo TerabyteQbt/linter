@@ -116,11 +116,11 @@ public class Main extends SimpleMain<Main.Options, Exception> {
             }
         }
         if(violations > 0) {
-            System.out.println("Linter complete with " + violations + " errors.");
+            System.err.println("Linter complete with " + violations + " errors.");
             return 1;
         }
         else {
-            System.out.println("Linter complete without errors.");
+            System.err.println("Linter complete without errors.");
             return 0;
         }
     }
