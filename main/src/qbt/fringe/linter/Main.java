@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import misc1.commons.options.NamedStringListArgumentOptionsFragment;
 import misc1.commons.options.OptionsFragment;
+import misc1.commons.options.OptionsLibrary;
 import misc1.commons.options.OptionsResults;
 import misc1.commons.options.SimpleMain;
 import org.apache.commons.lang3.tuple.Pair;
@@ -22,11 +22,12 @@ import org.apache.commons.lang3.tuple.Triple;
 
 public class Main extends SimpleMain<Main.Options, Exception> {
     public static interface Options {
-        public static final OptionsFragment<Options, ?, ImmutableList<String>> files = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-f", "--file"), "Check this file");
-        public static final OptionsFragment<Options, ?, ImmutableList<String>> dirs = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-d", "--dir"), "Check this source directory");
-        public static final OptionsFragment<Options, ?, ImmutableList<String>> jars = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-j", "--jars"), "Check this jar file");
-        public static final OptionsFragment<Options, ?, ImmutableList<String>> libs = new NamedStringListArgumentOptionsFragment<Options>(ImmutableList.of("-l", "--libs"), "Check this directory of jar files");
-        public static final OptionsFragment<Options, ?, ?> help = simpleHelpOption();
+        public static final OptionsLibrary<Options> o = OptionsLibrary.of();
+        public static final OptionsFragment<Options, ImmutableList<String>> files = o.oneArg("f", "file").helpDesc("Check this file");
+        public static final OptionsFragment<Options, ImmutableList<String>> dirs = o.oneArg("d", "dir").helpDesc("Check this source directory");
+        public static final OptionsFragment<Options, ImmutableList<String>> jars = o.oneArg("j", "jars").helpDesc("Check this jar file");
+        public static final OptionsFragment<Options, ImmutableList<String>> libs = o.oneArg("l", "libs").helpDesc("Check this directory of jar files");
+        public static final OptionsFragment<Options, ?> help = simpleHelpOption();
     }
 
     @Override
