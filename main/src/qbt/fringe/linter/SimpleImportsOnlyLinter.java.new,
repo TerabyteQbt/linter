@@ -1,0 +1,1 @@
+./linter/main/src/qbt/fringe/linter/SimpleImportsOnlyLinter.java mv ./linter/main/src/qbt/fringe/linter/SimpleImportsOnlyLinter.java.new ./linter/main/src/qbt/fringe/linter/SimpleImportsOnlyLinter.java

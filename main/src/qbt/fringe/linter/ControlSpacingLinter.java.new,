@@ -1,0 +1,1 @@
+./linter/main/src/qbt/fringe/linter/ControlSpacingLinter.java mv ./linter/main/src/qbt/fringe/linter/ControlSpacingLinter.java.new ./linter/main/src/qbt/fringe/linter/ControlSpacingLinter.java
