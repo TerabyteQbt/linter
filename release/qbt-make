@@ -7,3 +7,4 @@ set -e
 $INPUT_ARTIFACTS_DIR/weak/qbt_fringe.wrapper_generator.release/strong/qbt_fringe.wrapper_generator.release/bin/wrapper_generator $INPUT_ARTIFACTS_DIR/weak/qbt_fringe.linter.main/strong $OUTPUT_ARTIFACTS_DIR \
     linter qbt.fringe.linter.Main \
 
+cp LICENSE "$OUTPUT_ARTIFACTS_DIR"
